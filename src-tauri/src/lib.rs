@@ -244,18 +244,12 @@ fn check_adapter_status() -> bool {
     match network_interface::NetworkInterface::show() {
         Ok(interfaces) => {
             for iface in interfaces {
-                if iface.name.contains("Ethernet")
-                    || iface.name.contains("Wi-Fi")
-                    || iface.name.contains("WLAN")
-                    || iface.name.contains("Local")
+                let name_lower = iface.name.to_lowercase();
+                if name_lower.contains("ethernet")
+                    || name_lower.contains("wi-fi")
+                    || name_lower.contains("wlan")
+                    || name_lower.contains("local")
                 {
-                    if !iface.addr.is_empty() {
-                        return true;
-                    }
-                }
-            }
-            for iface in interfaces {
-                if iface.flags.contains(network_interface::NetworkInterfaceType::Broadcast) {
                     if !iface.addr.is_empty() {
                         return true;
                     }
@@ -417,11 +411,12 @@ fn start_network_monitoring(app: AppHandle, state: Arc<AppState>) {
                 let (is_online, adapter_ok) = check_network_status();
                 let ping_ok = is_online;
                 let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+                let now_for_record = now.clone();
 
                 let mut status = state.status.lock().unwrap();
                 let old_online = status.is_online;
                 status.is_online = is_online;
-                status.last_check = now;
+                status.last_check = now.clone();
                 status.adapter_status = adapter_ok;
                 status.ping_success = ping_ok;
 
@@ -437,7 +432,7 @@ fn start_network_monitoring(app: AppHandle, state: Arc<AppState>) {
                     }
 
                     let record = DisconnectRecord {
-                        start: now.clone(),
+                        start: now_for_record.clone(),
                         end: None,
                         duration_secs: None,
                     };
@@ -559,7 +554,7 @@ fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 "quit" => {
-                    write_log("INFO", "Application exiting", "应用程序退出", &state);
+                    write_log("INFO", "Application exiting", "应用程序退出".to_string(), &state);
                     app.exit(0);
                 }
                 _ => {}
@@ -723,7 +718,7 @@ pub fn run() {
 
             start_network_monitoring(app.handle().clone(), state_arc.clone());
 
-            write_log("INFO", "NetSentry started successfully", "NetSentry 启动成功", &state_arc);
+            write_log("INFO", "NetSentry started successfully", "NetSentry 启动成功".to_string(), &state_arc);
 
             Ok(())
         })
