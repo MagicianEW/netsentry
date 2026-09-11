@@ -263,6 +263,13 @@ fn check_adapter_status() -> bool {
 
 fn check_ping() -> bool {
     for target in PING_TARGETS {
+        #[cfg(target_os = "windows")]
+        let output = Command::new("ping")
+            .args(["-n", "1", "-w", "1000", target])
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW
+            .output();
+
+        #[cfg(not(target_os = "windows"))]
         let output = Command::new("ping")
             .args(["-n", "1", "-w", "1000", target])
             .output();
