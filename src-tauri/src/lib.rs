@@ -168,7 +168,7 @@ impl I18n {
 fn get_log_dir() -> PathBuf {
     dirs::data_local_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("NetWatcher")
+        .join("NetSentry")
         .join("logs")
 }
 
@@ -180,7 +180,7 @@ fn ensure_log_dir() -> std::io::Result<PathBuf> {
 
 fn get_current_log_file() -> std::io::Result<PathBuf> {
     let dir = ensure_log_dir()?;
-    Ok(dir.join("netwatcher.log"))
+    Ok(dir.join("netsentry.log"))
 }
 
 fn rotate_log_if_needed(log_path: &PathBuf) -> std::io::Result<PathBuf> {
@@ -188,7 +188,7 @@ fn rotate_log_if_needed(log_path: &PathBuf) -> std::io::Result<PathBuf> {
         let metadata = fs::metadata(log_path)?;
         if metadata.len() >= LOG_SIZE_LIMIT {
             let timestamp = Local::now().format("%Y%m%d_%H%M%S");
-            let archive_name = format!("netwatcher_{}.log", timestamp);
+            let archive_name = format!("netsentry_{}.log", timestamp);
             let archive_path = get_log_dir().join(archive_name);
             fs::rename(log_path, &archive_path)?;
         }
@@ -219,7 +219,7 @@ fn write_log(level: &str, msg_en: &str, msg_zh: &str, state: &AppState) {
     let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
     let settings = state.settings.lock().unwrap();
 
-    let log_file_path = get_current_log_file().unwrap_or_else(|_| PathBuf::from("netwatcher.log"));
+    let log_file_path = get_current_log_file().unwrap_or_else(|_| PathBuf::from("netsentry.log"));
     let rotated_path = rotate_log_if_needed(&log_file_path).unwrap_or(log_file_path);
 
     if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&rotated_path) {
@@ -302,9 +302,9 @@ fn set_autostart(enable: bool) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
 
     if enable {
-        reg_key.set_value("NetWatcher", &exe_path).map_err(|e| e.to_string())?;
+        reg_key.set_value("NetSentry", &exe_path).map_err(|e| e.to_string())?;
     } else {
-        let _ = reg_key.delete_value("NetWatcher");
+        let _ = reg_key.delete_value("NetSentry");
     }
     Ok(())
 }
@@ -363,7 +363,7 @@ fn get_translated_logs(state: tauri::State<'_, Arc<AppState>>) -> Vec<LogEntry> 
     drop(settings);
 
     let i18n = &state.i18n;
-    let log_path = get_current_log_file().unwrap_or_else(|_| PathBuf::from("netwatcher.log"));
+    let log_path = get_current_log_file().unwrap_or_else(|_| PathBuf::from("netsentry.log"));
 
     let mut entries = Vec::new();
 
@@ -507,7 +507,7 @@ fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
 
     let _tray = TrayIconBuilder::new()
         .menu(&menu)
-        .tooltip("NetWatcher")
+        .tooltip("NetSentry")
         .icon(app.default_window_icon().unwrap().clone())
         .menu_on_left_click(false)
         .on_menu_event(|app, event| {
@@ -587,7 +587,7 @@ fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
 fn load_settings() -> Settings {
     let config_path = dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("NetWatcher")
+        .join("NetSentry")
         .join("settings.json");
 
     if let Ok(data) = fs::read_to_string(&config_path) {
@@ -600,7 +600,7 @@ fn load_settings() -> Settings {
 fn save_settings_to_file(settings: &Settings) -> std::io::Result<()> {
     let config_dir = dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("NetWatcher");
+        .join("NetSentry");
 
     fs::create_dir_all(&config_dir)?;
     let config_path = config_dir.join("settings.json");
@@ -634,7 +634,7 @@ pub fn run() {
         i18n: I18n::new(&settings_clone.language),
     });
 
-    info!("NetWatcher starting...");
+    info!("NetSentry starting...");
 
     let port = settings_clone.port;
 
@@ -706,7 +706,7 @@ pub fn run() {
                                     .body(axum::body::Body::from(content))
                                     .unwrap_or_else(|_| axum::response::Html("Not Found").into_response())
                             } else {
-                                axum::response::Html("<html><body><h1>NetWatcher</h1><p>Use Tauri window to configure. Web access requires building with dist folder.</p></body></html>").into_response()
+                                axum::response::Html("<html><body><h1>NetSentry</h1><p>Use Tauri window to configure. Web access requires building with dist folder.</p></body></html>").into_response()
                             }
                         }))
                         .with_state(());
@@ -724,7 +724,7 @@ pub fn run() {
 
             start_network_monitoring(app.handle().clone(), state.inner().clone());
 
-            write_log("INFO", "NetWatcher started successfully", "NetWatcher 启动成功", &state);
+            write_log("INFO", "NetSentry started successfully", "NetSentry 启动成功", &state);
 
             Ok(())
         })

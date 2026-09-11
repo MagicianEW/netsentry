@@ -1,12 +1,12 @@
 [package]
-name = "netwatcher"
+name = "netsentry"
 version = "0.1.0"
-description = "Network monitoring tool with web interface"
+description = "NetSentry - Network monitoring tool"
 authors = ["EW"]
 edition = "2021"
 
 [lib]
-name = "netwatcher_lib"
+name = "netsentry_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
