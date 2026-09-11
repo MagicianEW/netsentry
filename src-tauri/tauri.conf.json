@@ -13,18 +13,13 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "NetWatcher",
+        "title": "NetSentry",
         "width": 800,
         "height": 600,
         "visible": false,
         "skipTaskbar": true
       }
     ],
-    "trayIcon": {
-      "iconPath": "icons/icon.ico",
-      "iconAsTemplate": false,
-      "menuOnLeftClick": false
-    },
     "security": {
       "csp": null
     }

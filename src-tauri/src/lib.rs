@@ -485,7 +485,6 @@ fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
 
     let i18n = &state.i18n;
 
-    let show_item = MenuItem::with_id(app, "show", i18n.t_lang(&lang, "settings"), true, None::<&str>)?;
     let settings_item = MenuItem::with_id(app, "settings", i18n.t_lang(&lang, "settings"), true, None::<&str>)?;
     let logs_item = MenuItem::with_id(app, "logs", i18n.t_lang(&lang, "view_logs"), true, None::<&str>)?;
     let separator1 = PredefinedMenuItem::separator(app)?;
@@ -498,7 +497,6 @@ fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let menu = Menu::with_items(
         app,
         &[
-            &show_item,
             &settings_item,
             &logs_item,
             &separator1,
