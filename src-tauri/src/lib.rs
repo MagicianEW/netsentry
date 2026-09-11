@@ -1,3 +1,4 @@
+use axum::response::IntoResponse;
 use chrono::Local;
 use log::{error, info, warn, LevelFilter};
 use network_interface::{NetworkInterface as _, NetworkInterfaceConfig};
@@ -14,6 +15,8 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::time::interval;
 use std::net::SocketAddr;
+use std::borrow::Cow;
+use axum::body;
 
 const LOG_SIZE_LIMIT: u64 = 128 * 1024;
 const PING_TARGETS: &[&str] = &["8.8.8.8", "1.1.1.1", "114.114.114.114"];
@@ -76,7 +79,7 @@ pub struct I18n {
 }
 
 impl I18n {
-    pub fn new(lang: &str) -> Self {
+    pub fn new(_lang: &str) -> Self {
         let mut dict = std::collections::HashMap::new();
 
         let mut zh = std::collections::HashMap::new();
@@ -358,10 +361,7 @@ fn get_status(state: tauri::State<'_, Arc<AppState>>) -> NetworkStatus {
 
 #[tauri::command]
 fn get_translated_logs(state: tauri::State<'_, Arc<AppState>>) -> Vec<LogEntry> {
-    let settings = state.settings.lock().unwrap();
-    let lang = &settings.language;
-    drop(settings);
-
+    let lang = state.settings.lock().unwrap().language.clone();
     let i18n = &state.i18n;
     let log_path = get_current_log_file().unwrap_or_else(|_| PathBuf::from("netsentry.log"));
 
@@ -379,7 +379,7 @@ fn get_translated_logs(state: tauri::State<'_, Arc<AppState>>) -> Vec<LogEntry> 
                         timestamp: parts.get(0).unwrap_or(&"").to_string(),
                         level: level.clone(),
                         message: message.clone(),
-                        translated: i18n.t_lang(lang, &message),
+                        translated: i18n.t_lang(&lang, &message),
                     });
                 }
             }
@@ -642,48 +642,48 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(state.clone())
         .setup(move |app| {
-            let state = app.state::<Arc<AppState>>().inner().clone();
+            let state_for_server = app.state::<Arc<AppState>>().clone();
             let port = port;
 
             std::thread::spawn(move || {
                 let rt = tokio::runtime::Runtime::new().unwrap();
                 rt.block_on(async {
-                    let state_for_server = state.clone();
+                    let state = state_for_server.clone();
 
-                    let app = axum::Router::new()
+                    let router = axum::Router::new()
                         .route("/api/status", axum::routing::get(move || {
-                            let s = state_for_server.clone();
+                            let s = state.clone();
                             async move {
                                 let status = s.status.lock().unwrap().clone();
                                 axum::Json(serde_json::json!({ "status": status }))
                             }
                         }))
                         .route("/api/settings", axum::routing::get(move || {
-                            let s = state_for_server.clone();
+                            let s = state.clone();
                             async move {
                                 let settings = s.settings.lock().unwrap().clone();
                                 axum::Json(settings)
                             }
                         }))
                         .route("/api/save-settings", axum::routing::post(move | axum::Json(settings): axum::Json<Settings>| {
-                            let s = state_for_server.clone();
+                            let s = state.clone();
                             async move {
                                 *s.settings.lock().unwrap() = settings.clone();
                                 axum::Json(serde_json::json!({"success": true}))
                             }
                         }))
                         .route("/api/logs", axum::routing::get(move || {
-                            let s = state_for_server.clone();
+                            let s = state.clone();
                             async move {
                                 let logs_path = get_current_log_file().unwrap_or_default();
                                 let logs_content = fs::read_to_string(&logs_path).unwrap_or_default();
                                 axum::Json(serde_json::json!({ "logs": logs_content }))
                             }
                         }))
-                        .fallback(axum::routing::get(|req| async move {
+                        .fallback(|req: axum::http::Request<body::Body>| async move {
                             let path = req.uri().path();
                             let dist_path = std::path::PathBuf::from(std::env::current_dir().unwrap_or_default()).join("dist");
-                            
+
                             let file_path = if path == "/" {
                                 dist_path.join("index.html")
                             } else {
@@ -708,13 +708,12 @@ pub fn run() {
                             } else {
                                 axum::response::Html("<html><body><h1>NetSentry</h1><p>Use Tauri window to configure. Web access requires building with dist folder.</p></body></html>").into_response()
                             }
-                        }))
-                        .with_state(());
+                        });
 
                     let addr = SocketAddr::from(([0, 0, 0, 0], port));
                     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
                     tracing::info!("Web server listening on {}", addr);
-                    axum::serve(listener, app).await.unwrap();
+                    axum::serve(listener, router).await.unwrap();
                 });
             });
 
@@ -722,9 +721,9 @@ pub fn run() {
                 error!("Failed to setup tray: {}", e);
             }
 
-            start_network_monitoring(app.handle().clone(), state.inner().clone());
+            start_network_monitoring(app.handle().clone(), app.state::<Arc<AppState>>().clone());
 
-            write_log("INFO", "NetSentry started successfully", "NetSentry 启动成功", &state);
+            write_log("INFO", "NetSentry started successfully", "NetSentry 启动成功", app.state::<Arc<AppState>>().as_ref());
 
             Ok(())
         })
