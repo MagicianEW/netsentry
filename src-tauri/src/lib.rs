@@ -18,6 +18,9 @@ use std::net::SocketAddr;
 use std::borrow::Cow;
 use axum::body;
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
 const LOG_SIZE_LIMIT: u64 = 128 * 1024;
 const PING_TARGETS: &[&str] = &["8.8.8.8", "1.1.1.1", "114.114.114.114"];
 const CHECK_INTERVAL: u64 = 5;
