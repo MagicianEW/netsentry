@@ -645,30 +645,35 @@ pub fn run() {
             std::thread::spawn(move || {
                 let rt = tokio::runtime::Runtime::new().unwrap();
                 rt.block_on(async {
+                    let s1 = state_for_thread.clone();
+                    let s2 = state_for_thread.clone();
+                    let s3 = state_for_thread.clone();
+                    let s4 = state_for_thread.clone();
+
                     let router = axum::Router::new()
                         .route("/api/status", axum::routing::get(move || {
-                            let s = state_for_thread.clone();
+                            let s = s1;
                             async move {
                                 let status = s.status.lock().unwrap().clone();
                                 axum::Json(serde_json::json!({ "status": status }))
                             }
                         }))
                         .route("/api/settings", axum::routing::get(move || {
-                            let s = state_for_thread.clone();
+                            let s = s2;
                             async move {
                                 let settings = s.settings.lock().unwrap().clone();
                                 axum::Json(settings)
                             }
                         }))
                         .route("/api/save-settings", axum::routing::post(move | axum::Json(settings): axum::Json<Settings>| {
-                            let s = state_for_thread.clone();
+                            let s = s3;
                             async move {
                                 *s.settings.lock().unwrap() = settings.clone();
                                 axum::Json(serde_json::json!({"success": true}))
                             }
                         }))
                         .route("/api/logs", axum::routing::get(move || {
-                            let s = state_for_thread.clone();
+                            let s = s4;
                             async move {
                                 let logs_path = get_current_log_file().unwrap_or_default();
                                 let logs_content = fs::read_to_string(&logs_path).unwrap_or_default();
