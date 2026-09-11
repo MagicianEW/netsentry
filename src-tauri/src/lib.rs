@@ -218,7 +218,7 @@ fn setup_logging() -> std::io::Result<()> {
     Ok(())
 }
 
-fn write_log(level: &str, msg_en: &str, msg_zh: &str, state: &AppState) {
+fn write_log(level: &str, msg_en: &str, msg_zh: String, state: &AppState) {
     let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
     let settings = state.settings.lock().unwrap();
 
@@ -339,12 +339,12 @@ fn save_settings(settings: Settings, state: tauri::State<'_, Arc<AppState>>, app
         } else {
             i18n.t_lang(&settings.language, "autostart_disabled")
         };
-        write_log("INFO", &format!("Autostart {}", if settings.autostart { "enabled" } else { "disabled" }), &msg, &state);
+        write_log("INFO", &format!("Autostart {}", if settings.autostart { "enabled" } else { "disabled" }), msg, &state);
     }
 
     if old_settings.language != settings.language {
         let msg = i18n.t_lang(&settings.language, "language_changed");
-        write_log("INFO", &format!("Language changed to {}", settings.language), &msg, &state);
+        write_log("INFO", &format!("Language changed to {}", settings.language), msg, &state);
     }
 
     write_log("INFO", "Settings saved", i18n.t_lang(&settings.language, "settings_saved"), &state);
@@ -642,13 +642,13 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(state.clone())
         .setup(move |app| {
-            let state_for_server = app.state::<Arc<AppState>>().clone();
+            let state_arc = (*app.state::<Arc<AppState>>().inner()).clone();
             let port = port;
 
             std::thread::spawn(move || {
                 let rt = tokio::runtime::Runtime::new().unwrap();
                 rt.block_on(async {
-                    let state = state_for_server.clone();
+                    let state = state_arc.clone();
 
                     let router = axum::Router::new()
                         .route("/api/status", axum::routing::get(move || {
@@ -721,9 +721,9 @@ pub fn run() {
                 error!("Failed to setup tray: {}", e);
             }
 
-            start_network_monitoring(app.handle().clone(), app.state::<Arc<AppState>>().clone());
+            start_network_monitoring(app.handle().clone(), state_arc.clone());
 
-            write_log("INFO", "NetSentry started successfully", "NetSentry 启动成功", app.state::<Arc<AppState>>().as_ref());
+            write_log("INFO", "NetSentry started successfully", "NetSentry 启动成功", &state_arc);
 
             Ok(())
         })
