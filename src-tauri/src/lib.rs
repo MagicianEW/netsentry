@@ -638,12 +638,14 @@ pub fn run() {
         .manage(state.clone())
         .setup(move |app| {
             let state_arc = (*app.state::<Arc<AppState>>().inner()).clone();
+            let state_for_thread = state_arc.clone();
+            let state_for_monitoring = state_arc.clone();
             let port = port;
 
             std::thread::spawn(move || {
                 let rt = tokio::runtime::Runtime::new().unwrap();
                 rt.block_on(async {
-                    let state = state_arc.clone();
+                    let state = state_for_thread.clone();
 
                     let router = axum::Router::new()
                         .route("/api/status", axum::routing::get(move || {
@@ -716,7 +718,7 @@ pub fn run() {
                 error!("Failed to setup tray: {}", e);
             }
 
-            start_network_monitoring(app.handle().clone(), state_arc.clone());
+            start_network_monitoring(app.handle().clone(), state_for_monitoring);
 
             write_log("INFO", "NetSentry started successfully", "NetSentry 启动成功".to_string(), &state_arc);
 
