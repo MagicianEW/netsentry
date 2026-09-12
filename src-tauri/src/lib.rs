@@ -311,7 +311,7 @@ fn read_translated_logs(state: &AppState) -> Vec<LogEntry> {
 /// - `0.0.0.0`          未指定地址
 /// - `127.0.0.0/8`      回环
 /// - `169.254.0.0/16`   APIPA / 链路本地。Windows 在拿不到 DHCP 地址时会自动分配这个段，
-///                      拔网线、WiFi 没连上、虚拟网卡都是这个段，必须排除，否则永远判为"在线"。
+///   拔网线、WiFi 没连上、虚拟网卡都是这个段，必须排除，否则永远判为"在线"。
 /// - `255.255.255.255`  广播
 fn is_usable_ipv4(ip: &Ipv4Addr) -> bool {
     !ip.is_unspecified() && !ip.is_loopback() && !ip.is_link_local() && !ip.is_broadcast()
@@ -473,7 +473,7 @@ fn load_settings() -> Settings {
 fn save_settings_to_file(settings: &Settings) -> std::io::Result<()> {
     fs::create_dir_all(config_dir())?;
     let json = serde_json::to_string_pretty(settings)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+        .map_err(std::io::Error::other)?;
     fs::write(settings_path(), json)
 }
 

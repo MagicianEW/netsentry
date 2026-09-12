@@ -28,6 +28,13 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+          components: clippy
+
+      - name: Clippy
+        # 告警一律当错误处理，避免小毛病攒成技术债。
+        # 本地跑同一条命令：cargo clippy --all-targets -- -D warnings
+        working-directory: src-tauri
+        run: cargo clippy --all-targets -- -D warnings
 
       - name: Install Node.js
         uses: actions/setup-node@v4
