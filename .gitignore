@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Rust / Tauri
+src-tauri/target/
+# Tauri 自动生成的 capability schema 目录，不该进版本库（P2-21）
+src-tauri/gen/

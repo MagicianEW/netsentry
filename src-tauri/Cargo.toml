@@ -1,13 +1,25 @@
 [package]
 name = "netsentry"
-version = "0.1.0"
+version = "0.1.1"
 description = "NetSentry - Network monitoring tool"
-authors = ["EW"]
+authors = ["MagicianEW"]
 edition = "2021"
 
 [lib]
 name = "netsentry_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
+
+[features]
+# 生产构建必须启用它：打开后前端资源会被编译进二进制，由 tauri:// 协议提供，
+# 不再依赖磁盘上的 dist 目录。
+#
+# Tauri 内部用 `dev = !custom_protocol` 决定前端资源是从磁盘读还是从二进制读
+# （见 tauri/build.rs）。不声明这个 feature，`dev` 就恒为 true，打包后的程序会去读
+# 工作目录下的 dist —— 装到别的机器上只会得到 404。
+#
+# `npm run tauri build` 会自动启用它；如果直接用 cargo 构建，需要手动加
+# `--features custom-protocol`。
+custom-protocol = ["tauri/custom-protocol"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -19,13 +31,17 @@ tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }
-log = "0.4"
-simplelog = "0.12"
 chrono = "0.4"
 network-interface = "2"
-winreg = "0.55"
 dirs = "6"
 axum = "0.8"
-tower-http = { version = "0.6", features = ["fs"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# 下面这些依赖之前声明了但没人用，纯增加编译时间与体积，已移除：
+#   log / simplelog     —— 日志改为 write_log 单一写入，不再走 log facade
+#   tracing             —— 没有任何 subscriber，tracing::info! 的输出直接被丢弃
+#   tracing-subscriber  —— 同上
+#   tower-http          —— 静态文件改由 Tauri asset_resolver 提供
+
+# winreg 只有 Windows 用得到，放进 target 段，避免其它平台白编译（P2-4）
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"

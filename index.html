@@ -72,7 +72,7 @@
         <section id="logs-section" class="card hidden">
           <div class="logs-header">
             <h2 id="logs-title">Logs</h2>
-            <button id="refresh-logs-btn" class="btn-small">&#8635;</button>
+            <button id="refresh-logs-btn" class="btn-small" title="Refresh">&#8635;</button>
           </div>
           <div id="logs-container" class="logs-container"></div>
         </section>
@@ -102,6 +102,13 @@
                 <span id="autostart-label">Autostart</span>
               </label>
             </div>
+            <div class="form-group checkbox-group">
+              <label class="checkbox-label">
+                <input type="checkbox" id="web-access-checkbox">
+                <span id="web-access-label">Allow LAN access</span>
+              </label>
+              <p id="web-access-hint" class="field-hint"></p>
+            </div>
           </div>
           <div class="modal-footer">
             <button id="cancel-settings-btn" class="btn btn-secondary">Cancel</button>
@@ -118,7 +125,8 @@
           </div>
           <div class="modal-body about-content">
             <h3>NetSentry</h3>
-            <p id="about-version">Version 0.1.0</p>
+            <!-- {{APP_VERSION}} 由 vite.config.ts 构建时替换；页面加载后 main.ts 会按当前语言重写这一行 -->
+            <p id="about-version">Version {{APP_VERSION}}</p>
             <p id="about-desc">Network monitoring tool with web interface</p>
           </div>
         </div>

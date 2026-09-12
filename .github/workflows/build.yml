@@ -32,11 +32,17 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # vite 8 要求 ^20.19.0 || >=22.12.0，原来的 20 卡在版本边界上（P2-20）
+          node-version: '22'
           cache: 'npm'
 
       - name: Install frontend dependencies
         run: npm ci
+
+      - name: Check version consistency
+        # 版本号只在 package.json 里维护，其余位置由 npm run version:sync 派生。
+        # 这里挡住"改了 package.json 忘了同步"的提交，避免发出一个版本号对不上的安装包。
+        run: npm run version:check
 
       - name: Build frontend
         run: npm run build
