@@ -13,6 +13,8 @@ interface NetworkStatus {
   is_online: boolean;
   adapter_status: boolean;
   ping_success: boolean;
+  /** TCP 兜底探测结果。ping 被防火墙屏蔽时，网络可能仍然是通的。 */
+  tcp_success: boolean;
   last_check: string;
   disconnect_count: number;
   current_disconnect_duration: number | null;
@@ -30,6 +32,19 @@ interface LogEntry {
   translated: string;
 }
 
+interface WebStatusInfo {
+  running: boolean;
+  phase: "stopped" | "starting" | "running" | "failed";
+  detail: string | null;
+  /** 后端按当前语言拼好的一行摘要，界面直接显示。 */
+  summary: string;
+}
+
+interface AppInfo {
+  platform: string;
+  autostart_supported: boolean;
+}
+
 /**
  * 语言资源直接复用仓库根目录的 `i18n.json`。
  *
@@ -40,6 +55,8 @@ const i18n = dict as unknown as Record<string, Record<string, string>>;
 
 let currentLang = "zh";
 let currentStatus: NetworkStatus | null = null;
+/** 开机自启是否真的实现了。界面上据此置灰，而不是让用户勾了个寂寞。 */
+let autostartSupported = true;
 
 function t(key: string): string {
   return i18n[currentLang]?.[key] || i18n["en"]?.[key] || key;
@@ -90,6 +107,9 @@ function readToken(): string {
   const fromUrl = new URLSearchParams(location.search).get("token");
   if (fromUrl) {
     localStorage.setItem(TOKEN_KEY, fromUrl);
+    // 读到之后立刻把令牌从地址栏抹掉。留在 URL 里会进浏览器历史，
+    // 局域网内别人瞄一眼地址栏就能直接拿到局域网访问权限。
+    window.history.replaceState(null, "", location.pathname);
     return fromUrl;
   }
   return localStorage.getItem(TOKEN_KEY) ?? "";
@@ -162,6 +182,25 @@ const api = {
       ? invoke<LogEntry[]>("get_translated_logs")
       : webFetch<LogEntry[]>("/api/logs");
   },
+
+  /**
+   * Web 服务运行状态。
+   *
+   * 后端在启动阶段只会 emit 一次 `web-server-error`，而那时前端监听器还没注册，
+   * 事件会直接丢失；窗口又是隐藏的，端口被占用这类问题原本对用户完全不可见。
+   * 所以启动后主动查一次。
+   */
+  async getWebStatus(): Promise<WebStatusInfo> {
+    return detectMode() === "tauri"
+      ? invoke<WebStatusInfo>("get_web_status")
+      : webFetch<WebStatusInfo>("/api/web-status");
+  },
+
+  async getAppInfo(): Promise<AppInfo> {
+    return detectMode() === "tauri"
+      ? invoke<AppInfo>("get_app_info")
+      : webFetch<AppInfo>("/api/app-info");
+  },
 };
 
 // ───────────────────────── 渲染 ─────────────────────────
@@ -177,8 +216,10 @@ function updateTexts() {
   el("language-label").textContent = t("language");
   el("port-label").textContent = t("port");
   el("autostart-label").textContent = t("autostart");
+  el("autostart-hint").textContent = t("autostart_unsupported");
   el("web-access-label").textContent = t("web_access");
   el("web-access-hint").textContent = t("web_access_hint");
+  el("logs-btn").title = t("logs");
   el("save-settings-btn").textContent = t("save");
   el("cancel-settings-btn").textContent = t("cancel");
   el("disconnect-count-label").textContent = t("disconnect_count");
@@ -186,6 +227,8 @@ function updateTexts() {
   el("last-check-label").textContent = t("last_check");
   el("adapter-label").textContent = t("adapter");
   el("ping-label").textContent = t("ping");
+  el("tcp-label").textContent = t("tcp");
+  el("web-status-label").textContent = t("web_status");
   el("refresh-logs-btn").title = t("refresh");
   el("about-version").textContent = `${t("version")} ${__APP_VERSION__}`;
   el("about-desc").textContent = t("app_desc");
@@ -216,6 +259,7 @@ function updateStatusDisplay() {
   const statusText = el("status-text");
   const adapterStatus = el("adapter-status");
   const pingStatus = el("ping-status");
+  const tcpStatus = el("tcp-status");
   const lastCheckTime = el("last-check-time");
   const disconnectCount = el("disconnect-count");
   const currentDuration = el("current-duration");
@@ -241,6 +285,11 @@ function updateStatusDisplay() {
 
   pingStatus.textContent = currentStatus.ping_success ? t("ping_normal") : t("ping_failed");
   pingStatus.style.color = currentStatus.ping_success ? "#22c55e" : "#ef4444";
+
+  // TCP 单独一行，如实展示。ping 失败但 TCP 通是**正常**状态（ICMP 被防火墙屏蔽），
+  // 合并成一行或者反过来隐藏，都会让用户误以为整个网络有问题。
+  tcpStatus.textContent = currentStatus.tcp_success ? t("tcp_normal") : t("tcp_failed");
+  tcpStatus.style.color = currentStatus.tcp_success ? "#22c55e" : "#ef4444";
 
   lastCheckTime.textContent = currentStatus.last_check;
   disconnectCount.textContent = currentStatus.disconnect_count.toString();
@@ -291,6 +340,18 @@ async function loadSettings() {
     const settings = await api.getSettings();
     currentLang = settings.language;
 
+    // 开机自启只在 Windows 上实现。其它平台上原后端直接返回 Ok，
+    // 界面会显示"保存成功"却什么都不发生——这里直接置灰并说明原因。
+    try {
+      const info = await api.getAppInfo();
+      autostartSupported = info.autostart_supported;
+    } catch {
+      // 拿不到就按支持处理，不因为一个辅助信息卡住整个设置面板。
+      autostartSupported = true;
+    }
+    el<HTMLInputElement>("autostart-checkbox").disabled = !autostartSupported;
+    el("autostart-hint").classList.toggle("hidden", autostartSupported);
+
     el<HTMLSelectElement>("language-select").value = settings.language;
     el<HTMLInputElement>("port-input").value = settings.port.toString();
     el<HTMLInputElement>("autostart-checkbox").checked = settings.autostart;
@@ -299,6 +360,29 @@ async function loadSettings() {
     updateTexts();
   } catch (e) {
     console.error("Failed to load settings:", e);
+  }
+}
+
+/**
+ * 刷新 Web 服务状态。
+ *
+ * 后端在启动阶段只会 emit 一次 `web-server-error`，而那时前端监听器还没注册，
+ * 事件直接丢失；窗口又是隐藏的，端口被占用这类问题原本对用户**完全不可见**。
+ * 所以改成启动后主动查一次，并且把失败原因常驻显示。
+ */
+async function refreshWebStatus() {
+  try {
+    const info = await api.getWebStatus();
+    el("web-status-value").textContent = info.summary;
+    const banner = el("web-status-banner");
+    if (info.phase === "failed") {
+      el("web-status-text").textContent = info.summary;
+      banner.classList.remove("hidden");
+    } else {
+      banner.classList.add("hidden");
+    }
+  } catch (e) {
+    console.error("Failed to read web server status:", e);
   }
 }
 
@@ -376,7 +460,10 @@ function hideAboutModal() {
 async function saveSettings() {
   const language = el<HTMLSelectElement>("language-select").value;
   const port = Number.parseInt(el<HTMLInputElement>("port-input").value, 10);
-  const autostart = el<HTMLInputElement>("autostart-checkbox").checked;
+  // 置灰的复选框在部分实现里仍会保留 checked，这里再兜一层，
+  // 免得把一个后端明确不支持的开关原样提交上去。
+  const autostart =
+    autostartSupported && el<HTMLInputElement>("autostart-checkbox").checked;
   const webAccess = el<HTMLInputElement>("web-access-checkbox").checked;
 
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
@@ -387,13 +474,33 @@ async function saveSettings() {
   const settings: Settings = { language, port, autostart, web_access: webAccess };
 
   try {
-    await api.saveSettings(settings);
+    const result = await api.saveSettings(settings);
     currentLang = language;
     updateTexts();
     hideSettingsModal();
+
+    // 浏览器模式下改端口 / 改访问范围，服务会换到新地址，当前页面的 origin
+    // 随即失效、后续所有请求都会静默失败。这里主动带过去，
+    // 别让人对着一个不再刷新的页面发呆。
+    if (detectMode() === "web") {
+      const url = (result as { url?: string } | null | undefined)?.url;
+      if (typeof url === "string" && url !== "" && url !== location.origin) {
+        window.location.href = url;
+      }
+    }
   } catch (e) {
     console.error("Failed to save settings:", e);
     alert(String(e));
+  }
+}
+
+/** 切换日志面板。浏览器模式下没有托盘菜单，这个入口是唯一的。 */
+function toggleLogs() {
+  const section = el("logs-section");
+  const willShow = section.classList.contains("hidden");
+  section.classList.toggle("hidden", !willShow);
+  if (willShow) {
+    void loadLogs();
   }
 }
 
@@ -412,37 +519,40 @@ async function setupTauriEvents() {
   });
 
   await listen("open-settings", () => {
-    loadSettings();
+    void loadSettings();
     showSettingsModal();
   });
 
   await listen("open-logs", () => {
     el("logs-section").classList.remove("hidden");
-    loadLogs();
+    void loadLogs();
   });
 
   await listen("open-about", () => {
     showAboutModal();
   });
 
-  // 端口被占用等情况下后端启动 Web 服务失败，必须让用户看到，不能静默
+  // 端口被占用等运行时故障必须让用户看到。注意启动阶段那次 emit 会早于本监听器
+  // 注册而丢失，那一次由 init() 里的 refreshWebStatus() 主动查来兜底。
   await listen<string>("web-server-error", (event) => {
     console.error("Web server failed to start:", event.payload);
     alert(`${t("port_in_use")}\n${event.payload}`);
+    void refreshWebStatus();
   });
 }
 
 function setupDomListeners() {
   el("settings-btn").addEventListener("click", () => {
-    loadSettings();
+    void loadSettings();
     showSettingsModal();
   });
 
+  el("logs-btn").addEventListener("click", toggleLogs);
   el("close-settings-btn").addEventListener("click", hideSettingsModal);
   el("cancel-settings-btn").addEventListener("click", hideSettingsModal);
-  el("save-settings-btn").addEventListener("click", saveSettings);
+  el("save-settings-btn").addEventListener("click", () => void saveSettings());
   el("close-about-btn").addEventListener("click", hideAboutModal);
-  el("refresh-logs-btn").addEventListener("click", loadLogs);
+  el("refresh-logs-btn").addEventListener("click", () => void loadLogs());
 
   el("settings-modal").addEventListener("click", (e) => {
     if (e.target === el("settings-modal")) {
@@ -468,10 +578,11 @@ async function init() {
 
   await loadSettings();
   await loadStatus();
+  await refreshWebStatus();
 
   if (detectMode() === "web") {
     // 浏览器里没有事件通道，只能定时拉取
-    window.setInterval(loadStatus, 5000);
+    window.setInterval(() => void loadStatus(), 5000);
   }
 }
 

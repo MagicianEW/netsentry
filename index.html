@@ -12,7 +12,10 @@
     <div id="app">
       <header class="header">
         <h1 id="app-title">NetSentry</h1>
-        <button id="settings-btn" class="icon-btn">&#9881;</button>
+        <div class="header-actions">
+          <button id="logs-btn" class="icon-btn" title="Logs">&#128220;</button>
+          <button id="settings-btn" class="icon-btn">&#9881;</button>
+        </div>
       </header>
 
       <main class="main-content">
@@ -32,8 +35,27 @@
               <span id="ping-status">OK</span>
             </div>
             <div class="detail-row">
+              <span id="tcp-label">TCP:</span>
+              <span id="tcp-status">OK</span>
+            </div>
+            <div class="detail-row">
+              <span id="web-status-label">Web server:</span>
+              <span id="web-status-value">--</span>
+            </div>
+            <div class="detail-row">
               <span id="last-check-label">Last Check:</span>
               <span id="last-check-time">--</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Web 服务启动失败时的常驻提示。启动阶段后端发的 web-server-error 事件
+             会早于前端监听注册而丢失，这条横幅是用户唯一能看到失败原因的地方。 -->
+        <section id="web-status-banner" class="card warning hidden">
+          <div class="warning-content">
+            <span class="warning-icon">&#9888;</span>
+            <div class="warning-text">
+              <p id="web-status-text"></p>
             </div>
           </div>
         </section>
@@ -101,6 +123,7 @@
                 <input type="checkbox" id="autostart-checkbox">
                 <span id="autostart-label">Autostart</span>
               </label>
+              <p id="autostart-hint" class="field-hint hidden"></p>
             </div>
             <div class="form-group checkbox-group">
               <label class="checkbox-label">

@@ -64,6 +64,13 @@ body {
   background: var(--border);
 }
 
+/* 头部右侧的操作按钮组（日志 / 设置） */
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .main-content {
   display: grid;
   gap: 16px;

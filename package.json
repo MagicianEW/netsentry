@@ -1,7 +1,7 @@
 {
   "name": "netsentry",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "description": "NetSentry - 网络连接监控工具（Tauri 桌面端 + 内嵌 Web 界面）",
   "engines": {
