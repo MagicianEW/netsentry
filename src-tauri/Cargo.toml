@@ -25,7 +25,11 @@ custom-protocol = ["tauri/custom-protocol"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon"] }
+# 版本锁到 2.12，而不是笼统的 "2"：Rust 侧 tauri 的 major.minor 必须和 NPM 侧
+# `@tauri-apps/api` 一致，否则 `tauri build` 会直接拒绝运行（"Found version
+# mismatched Tauri packages"）。写成 "2" 时，某个插件的依赖一旦把 tauri 抬到
+# 2.12 而 npm 侧还停在 2.11，就会在 CI 上炸掉——这里两侧都显式锁死以杜绝漂移。
+tauri = { version = "2.12", features = ["tray-icon"] }
 tauri-plugin-opener = "2"
 # 断网/恢复的系统通知（P0-2）：产品价值在于「不看屏幕也知道断网了」，
 # 之前只有窗口内变红，等于把告警做在了唯一不会被看到的地方。

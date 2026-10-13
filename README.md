@@ -52,6 +52,23 @@ cargo check --manifest-path src-tauri/Cargo.toml
 cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
 ```
 
+### Rust 与 NPM 的 tauri 版本必须对齐
+
+`tauri build` 会检查两侧的 **major.minor 是否一致**，不一致直接拒绝运行：
+
+```
+Error Found version mismatched Tauri packages.
+tauri (v2.12.0) : @tauri-apps/api (v2.11.1)
+```
+
+注意这个检查**只在 `tauri build` 时执行**——`cargo check` / `cargo clippy` / `npm run build`
+都不会触发，所以本地全绿不代表 CI 一定能过。
+
+两侧因此都写死了主次版本：`src-tauri/Cargo.toml` 里是 `tauri = { version = "2.12", ... }`，
+`package.json` 里是 `"@tauri-apps/api": "^2.12.0"`。升级 tauri 时**两边一起改**：
+如果只写笼统的 `"2"`，某个插件的依赖一旦把 Rust 侧抬到 2.13 而 npm 侧还停在 2.12，
+就会在 CI 上炸掉——而且 `clippy` 那一步还是绿的，因为它根本不跑这个检查。
+
 ### 关于 `custom-protocol` feature
 
 `src-tauri/Cargo.toml` 里声明了：
